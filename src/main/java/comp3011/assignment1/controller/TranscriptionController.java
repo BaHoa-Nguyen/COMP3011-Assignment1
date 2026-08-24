@@ -1,6 +1,5 @@
 package comp3011.assignment1.controller;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,13 +22,23 @@ public class TranscriptionController {
   @PostMapping("/transcribe")
   // using ResponseEntity to handle HTTP response
   public ResponseEntity<String> receiveAudio(@RequestParam("audio") MultipartFile audioFile) {
+
+    // in case the audio file is empty
+    if (audioFile == null || audioFile.isEmpty()) {
+
+      return ResponseEntity
+          .badRequest()
+          .body("Audio file is empty!");
+    }
+
     try {
 
-      String transcription = transcriptionService.transcribe((audioFile));
-      return new ResponseEntity<>(transcription, HttpStatus.OK);
+      String transcription = transcriptionService.transcribe(audioFile);
+      return ResponseEntity.ok(transcription);
 
     } catch (Exception e) {
-      return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+
+      return ResponseEntity.internalServerError().body("Internal Server Error");
     }
   }
 }
