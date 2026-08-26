@@ -31,14 +31,9 @@ public class TranscriptionController {
           .body("Audio file is empty!");
     }
 
-    try {
+    String transcription = transcriptionService.transcribe(audioFile);
 
-      String transcription = transcriptionService.transcribe(audioFile);
-      return ResponseEntity.ok(transcription);
+    return ResponseEntity.ok(transcription);
 
-    } catch (Exception e) {
-
-      return ResponseEntity.internalServerError().body("Internal Server Error");
-    }
   }
 }
