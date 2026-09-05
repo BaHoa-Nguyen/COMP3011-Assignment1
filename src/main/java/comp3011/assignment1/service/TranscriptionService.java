@@ -1,39 +1,81 @@
 package comp3011.assignment1.service;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.audio.transcription.TranscriptionModel;
-import org.springframework.ai.openai.OpenAiAudioTranscriptionOptions;
+import java.io.IOException;
+import java.io.InputStream;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-// for logging purposes
-@Slf4j
+import com.openai.client.OpenAIClient;
+import com.openai.core.MultipartField;
+import com.openai.models.audio.AudioModel;
+import com.openai.models.audio.AudioResponseFormat;
+import com.openai.models.audio.transcriptions.TranscriptionCreateParams;
+import com.openai.models.audio.transcriptions.TranscriptionCreateResponse;
+
 @Service
 public class TranscriptionService {
 
-  private final TranscriptionModel transcriptionModel;
+  private final OpenAIClient openAIClient;
+  private final GlobalStatsService globalStatsService;
 
-  public TranscriptionService(TranscriptionModel transcriptionModel) {
-    this.transcriptionModel = transcriptionModel;
+  public TranscriptionService(OpenAIClient openAIClient, GlobalStatsService globalStatsService) {
+    this.openAIClient = openAIClient;
+    this.globalStatsService = globalStatsService;
+
   }
 
   // the transcriptionModel class already have the transcribe method
-  public String transcribe(MultipartFile audioFile) {
+  public String transcribe(MultipartFile audioFile) throws IOException {
 
-    try {
-      // using gpt-4o-transcribe for more accurate transcription
-      OpenAiAudioTranscriptionOptions options = OpenAiAudioTranscriptionOptions.builder()
-          .model("gpt-4o-transcribe")
-          .language("en") // default english
-          .temperature(0.0f) // temperature set at 0 for better accuracy
-          .build();
+    TranscriptionCreateParams params = createRequest(audioFile);
+    TranscriptionCreateResponse response = openAIClient.audio().transcriptions().create(params);
 
-      return transcriptionModel.transcribe(audioFile.getResource(), options);
+    updateTokenUsage(response);
 
-    } catch (Exception err) {
-      log.error("Transcription Failed: ", err);
-      throw err;
-    }
+    // use of orElseThrow() to unwrap the Optional part
+    return response.transcription().orElseThrow().text();
+  }
+
+  private TranscriptionCreateParams createRequest(MultipartFile audioFile) throws IOException {
+
+    // create a MultipartField request for OpenAI model
+    return TranscriptionCreateParams.builder()
+        .file(
+            MultipartField.<InputStream>builder() // OpenAI SDK requires MultipartField of InputStream data type
+                .value(audioFile.getInputStream())
+                .filename("recording.webm")
+                .build())
+        .model(AudioModel.GPT_4O_TRANSCRIBE)
+        .language("en")
+        .temperature(0.0f)
+        .responseFormat(AudioResponseFormat.JSON)
+        .build();
+  }
+
+  private void updateTokenUsage(TranscriptionCreateResponse response) { 
+    // use of orElseThrow to ensure that the model does return a transcription response
+    // otherwise throws an error as transcription(), usage() and tokens()
+    // all have Optional<> wrapper, meaning that they can return a null response 
+    // which can make it hard for debugging.
+    
+    long inputTokens = response.transcription()
+        .orElseThrow()
+        .usage()
+        .orElseThrow()
+        .tokens()
+        .orElseThrow()
+        .inputTokens();
+
+    long outputTokens = response.transcription()
+        .orElseThrow()
+        .usage()
+        .orElseThrow()
+        .tokens()
+        .orElseThrow()
+        .outputTokens();
+
+    globalStatsService.addUsage(inputTokens, outputTokens);
   }
 
 }
