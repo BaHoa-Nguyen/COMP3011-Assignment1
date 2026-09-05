@@ -9,6 +9,8 @@ import comp3011.assignment1.dto.ErrorResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
 import java.time.Instant;
 
 @Slf4j
@@ -47,4 +49,13 @@ public class GlobalExceptionHandler {
 
     return generateErrorResponse(HttpStatus.CONFLICT, "Graceful shutdown is already in progress.", request);
   }
+
+  @ExceptionHandler(IOException.class)
+  public ResponseEntity<ErrorResponse> handleIOException(IOException e, HttpServletRequest request) {
+
+    log.error("Error: ", e);
+
+    return generateErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to process audio file", request);
+  }
+
 }
